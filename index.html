@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kempt</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='0' y='3' width='22' height='3.4' rx='1.2' fill='%230F6B4B'/%3E%3Crect x='0' y='9.3' width='22' height='3.4' rx='1.2' fill='%230F6B4B'/%3E%3Crect x='0' y='15.6' width='22' height='3.4' rx='1.2' fill='%230F6B4B'/%3E%3C/svg%3E">
+<meta name="description" content="CRM data cleanup for large companies on HubSpot and Microsoft Dynamics. Duplicates, dead emails and empty fields fixed in weeks, plus the rules that keep the data clean.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+[hidden]{display:none !important}
+html,body{margin:0}
+/* Layout: five short blocks, problem first. Left-aligned 1160px column, hairline rules instead of cards;
+   the before/after ledger is the one elevated object. */
+:root{
+  --paper:#F3F6F5; --surface:#FFFFFF; --ink:#0E1A1C; --muted:#56666A; --rule:#D3DCDA;
+  --accent:#0F6B4B; --accent-ink:#FFFFFF; --accent-soft:#DDEFE6;
+  --warn:#B4432F; --warn-soft:#F5E6E1; --ring:#C8A96B;
+  --shadow:0 1px 0 rgba(14,26,28,.04), 0 24px 48px -24px rgba(14,26,28,.28);
+  --f-display:"Bricolage Grotesque","Albert Sans",system-ui,sans-serif;
+  --f-body:"Albert Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0B1315; --surface:#111D20; --ink:#E3ECEA; --muted:#93A4A4; --rule:#233539;
+    --accent:#4CC392; --accent-ink:#04201A; --accent-soft:#12342A;
+    --warn:#EE8670; --warn-soft:#3A1E18;
+    --shadow:0 1px 0 rgba(0,0,0,.3), 0 24px 48px -24px rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0B1315; --surface:#111D20; --ink:#E3ECEA; --muted:#93A4A4; --rule:#233539;
+  --accent:#4CC392; --accent-ink:#04201A; --accent-soft:#12342A;
+  --warn:#EE8670; --warn-soft:#3A1E18;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 24px 48px -24px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--paper)}
+h1,h2,h3{font-family:var(--f-display);font-optical-sizing:auto;margin:0;text-wrap:balance;color:var(--ink)}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+
+.wrap{max-width:1160px;margin-inline:auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+@media (min-width:720px){.wrap{padding-left:max(32px, env(safe-area-inset-left,0px));padding-right:max(32px, env(safe-area-inset-right,0px))}}
+
+.eyebrow{display:flex;align-items:center;gap:10px;font:500 12px/1.2 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+.eyebrow::before{content:"";width:8px;height:8px;background:var(--accent);flex:none}
+.label{font:500 12px/1.2 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 16px/1 var(--f-body);text-decoration:none;padding:15px 22px;border-radius:6px;border:1px solid transparent;cursor:pointer;transition:background .15s, color .15s, border-color .15s, transform .15s}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-sm{padding:10px 16px;font-size:14px}
+.btn-block{width:100%}
+@media (prefers-reduced-motion: reduce){.btn:hover{transform:none}}
+
+/* Header */
+.site-head{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--paper);background:color-mix(in srgb, var(--paper) 90%, transparent);-webkit-backdrop-filter:saturate(1.4) blur(10px);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--rule)}
+.head-row{display:flex;align-items:center;gap:28px;min-height:66px}
+.logo{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
+.logo svg{flex:none;color:var(--accent)}
+.logo span{font:800 25px/1 var(--f-display);letter-spacing:-.04em}
+.nav{display:flex;gap:24px;margin-left:auto;font-size:15px}
+.nav a{text-decoration:none;color:var(--muted)}
+.nav a:hover{color:var(--ink)}
+@media (max-width:860px){.nav{display:none}.head-row .btn{margin-left:auto}}
+
+/* Sections */
+.sec{padding-block:clamp(64px,9vw,112px)}
+.sec-alt{background:var(--surface);border-block:1px solid var(--rule)}
+.sec h2{font-size:clamp(2rem,4vw,3.1rem);font-weight:750;line-height:1.03;letter-spacing:-.035em}
+.sec-head{display:grid;gap:16px;max-width:720px;margin-bottom:clamp(32px,4.5vw,52px)}
+.sec-head > p:not(.eyebrow){color:var(--muted);max-width:58ch}
+
+/* 1. Hero */
+.hero{padding-block:clamp(48px,7vw,88px) clamp(48px,7vw,80px)}
+.hero-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:clamp(32px,5vw,72px);align-items:center}
+.hero-grid > *{min-width:0}
+.hero-text{display:grid;gap:22px}
+.hero h1{font-size:clamp(2.5rem,5.6vw,4.4rem);font-weight:800;line-height:.98;letter-spacing:-.04em}
+.hero h1 .ok{color:var(--accent);display:block}
+.lead{font-size:clamp(17px,1.5vw,19px);color:var(--muted);max-width:50ch}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.cta-note{font-size:14.5px;color:var(--muted)}
+#open-demo svg{flex:none;color:var(--accent)}
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(5,12,14,.84);padding:max(16px, env(safe-area-inset-top,0px)) max(16px, env(safe-area-inset-right,0px)) max(16px, env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px))}
+.modal-box{position:relative;width:min(1100px,100%);display:grid;gap:12px}
+.modal-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;color:#E6EFEC;font:500 13px/1.3 var(--f-mono);letter-spacing:.06em;text-transform:uppercase}
+.modal-close{font:600 15px/1 var(--f-body);color:#E6EFEC;background:transparent;border:1px solid rgba(230,239,236,.4);border-radius:6px;padding:9px 14px;cursor:pointer;text-transform:none;letter-spacing:0}
+.modal-close:hover{border-color:#E6EFEC}
+.modal-box video{display:block;width:100%;aspect-ratio:16/9;border-radius:12px;background:#000}
+.modal-missing{aspect-ratio:16/9;border-radius:12px;background:var(--surface);color:var(--ink);display:grid;place-items:center;text-align:center;padding:24px;font-size:18px}
+.symptoms{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:26px 26px 22px;box-shadow:var(--shadow)}
+.symptoms ul{list-style:none;margin:16px 0 0;padding:0}
+.symptoms li{display:flex;gap:14px;align-items:baseline;padding:13px 0;border-top:1px solid var(--rule);font:500 17px/1.4 var(--f-body)}
+.symptoms li::before{content:"";flex:none;width:7px;height:7px;background:var(--warn);border-radius:50%;transform:translateY(-3px)}
+.symptoms .after{margin-top:6px;padding-top:14px;border-top:1px solid var(--ink);font-size:15px;color:var(--accent);font-weight:600}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);margin:clamp(40px,5vw,56px) 0 0;border-top:1px solid var(--rule)}
+.facts div{padding:18px 20px 0 0}
+.facts div + div{padding-left:20px;border-left:1px solid var(--rule)}
+.facts dt{font:700 clamp(22px,2.6vw,30px)/1.1 var(--f-display);letter-spacing:-.02em}
+.facts dd{margin:4px 0 0;color:var(--muted);font-size:15px}
+@media (max-width:860px){.hero-grid{grid-template-columns:1fr}}
+@media (max-width:560px){.facts{grid-template-columns:1fr}.facts div + div{padding-left:0;border-left:0;border-top:1px solid var(--rule);margin-top:18px}}
+
+/* 2. What we fix */
+.fixes{border-top:1px solid var(--ink)}
+.fix-row{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:28px;padding:20px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.fix-row > *{min-width:0}
+.fix-head{padding:14px 0}
+.fix-row .p{font-weight:600}
+.fix-row .p::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:12px;transform:translateY(-2px)}
+.fix-row .d{color:var(--muted)}
+.fix-row .r{color:var(--accent);font-weight:600}
+.fix-row .r::before{content:"";display:inline-block;width:11px;height:6px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg) translateY(-4px);margin-right:10px}
+.fix-row [data-l]::before{}
+@media (max-width:760px){
+  .fix-head{display:none}
+  .fix-row{grid-template-columns:1fr;gap:6px}
+  .fix-row .d::before{content:"We: ";color:var(--ink);font-weight:600}
+}
+
+/* 3. How it works + technology */
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px}
+.step{display:grid;gap:12px;align-content:start}
+.track{height:6px;background:var(--rule);border-radius:3px;overflow:hidden}
+.track span{display:block;height:100%;width:var(--w);background:var(--accent);border-radius:3px}
+.when{font:500 12px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.step h3{font-size:1.35rem;font-weight:700;letter-spacing:-.015em;display:flex;gap:10px;align-items:baseline}
+.step h3 .num{font:500 13px/1 var(--f-mono);color:var(--accent)}
+.step p{color:var(--muted);font-size:16px}
+@media (max-width:760px){.steps{grid-template-columns:1fr}}
+
+.tech-block{margin-top:clamp(56px,7vw,88px);display:grid;gap:28px}
+.tech-intro{display:grid;grid-template-columns:1fr 1.3fr;gap:clamp(24px,5vw,72px);align-items:end}
+.tech-intro h3{font-size:clamp(1.6rem,2.8vw,2.2rem);font-weight:750;letter-spacing:-.03em;line-height:1.05}
+.tech-intro p{color:var(--muted);max-width:56ch}
+@media (max-width:760px){.tech-intro{grid-template-columns:1fr}}
+.tech{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px}
+.tech-item{display:grid;gap:8px;align-content:start;padding-top:18px;border-top:2px solid var(--ink)}
+.tech-item code{font:500 12px/1.3 var(--f-mono);color:var(--accent);letter-spacing:.03em}
+.tech-item h4{margin:0;font:700 1.15rem/1.25 var(--f-display);letter-spacing:-.01em}
+.tech-item p{color:var(--muted);font-size:15.5px}
+@media (max-width:980px){.tech{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.tech{grid-template-columns:1fr}}
+
+/* Ledger */
+.ledger{margin:8px 0 0;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.ledger-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px 12px 18px;border-bottom:1px solid var(--rule)}
+.file{font:500 13px/1.3 var(--f-mono);color:var(--ink);min-width:0}
+.file .dim{color:var(--muted);font-weight:400}
+.toggle{display:inline-flex;padding:3px;border:1px solid var(--rule);border-radius:7px;background:var(--paper)}
+.toggle button{font:500 13px/1 var(--f-mono);letter-spacing:.02em;padding:8px 14px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.ledger-scroll{overflow-x:auto}
+.records{width:100%;min-width:680px;border-collapse:collapse;font:400 13px/1.4 var(--f-mono);font-variant-numeric:tabular-nums}
+.records th{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.09em;color:var(--muted);text-align:left;padding:13px 16px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.records td{padding:12px 16px;border-bottom:1px solid var(--rule);white-space:nowrap;vertical-align:middle;color:var(--ink)}
+.records tbody tr:last-child td{border-bottom:0}
+.records td:first-child,.records th:first-child{padding-right:6px;width:1%}
+.records .a{display:none}
+.records[data-state="after"] .b{display:none}
+.records[data-state="after"] .a{display:inline}
+.flag{color:var(--warn);text-decoration:underline wavy var(--warn);text-decoration-thickness:1px;text-underline-offset:4px;text-decoration-skip-ink:none}
+.records[data-state="after"] .flag{color:inherit;text-decoration:none}
+.fixed{color:var(--accent);font-weight:500}
+.empty{font-style:italic;opacity:.8}
+.tag{display:inline-block;font:500 11px/1 var(--f-mono);letter-spacing:.04em;padding:6px 8px;border-radius:4px;border:1px solid var(--rule);color:var(--muted);white-space:nowrap}
+.tag-warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.tag-ok{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.records[data-state="after"] tr.drop td:not(:first-child){text-decoration:line-through;text-decoration-color:var(--warn);color:var(--muted)}
+.records.anim tr td > span{animation:settle .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 70ms)}
+@keyframes settle{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.records.anim tr td > span{animation:none}}
+.ledger-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;padding:12px 18px;border-top:1px solid var(--rule);font:400 12px/1.4 var(--f-mono);color:var(--muted)}
+.legend{display:flex;gap:16px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:14px;height:10px;border-radius:2px;background:var(--warn);display:inline-block}
+.sw.ok{background:var(--accent)}
+#ledger-summary{color:var(--ink);font-weight:500}
+
+/* 4. Free demo + security */
+.panel{display:grid;grid-template-columns:1.05fr 1fr;gap:clamp(32px,5vw,72px);background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:clamp(24px,4.5vw,56px)}
+.panel > *{min-width:0}
+.panel .intro{display:grid;gap:18px;align-content:start}
+.panel .intro > p:not(.eyebrow){color:var(--muted)}
+.person{display:flex;gap:16px;align-items:flex-start;margin-top:8px;padding-top:24px;border-top:1px solid var(--rule)}
+.avatar{flex:none;width:112px;height:112px;border-radius:50%;border:2px solid var(--ring);overflow:hidden;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font:700 19px/1 var(--f-display);text-decoration:none}
+.avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.person-name{font-weight:600}
+.person-name a{text-decoration:none}
+.person-name a:hover{text-decoration:underline;text-underline-offset:3px}
+.person-role{font:500 12px/1.4 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.person-text{color:var(--muted);font-size:15.5px;margin-top:8px}
+.person-links{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:15px}
+.btn-li{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink);font-weight:600;font-size:14.5px;line-height:1;text-decoration:none}
+.btn-li:hover{border-color:var(--ink)}
+.btn-li svg{flex:none;color:var(--accent)}
+.mail{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:14px}
+.mail #mail{user-select:all}
+.copy{font:500 12px/1 var(--f-mono);padding:6px 8px;border:1px solid var(--rule);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer}
+.copy:hover{color:var(--ink);border-color:var(--ink)}
+@media (max-width:900px){.panel{grid-template-columns:1fr}}
+
+.form{display:grid;gap:16px;align-content:start}
+.field{display:grid;gap:7px;min-width:0}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:520px){.field-row{grid-template-columns:1fr}}
+.field label{font-size:14px;font-weight:600}
+.field input,.field select{font:400 16px/1.4 var(--f-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:12px 13px;width:100%;min-width:0}
+.field input:focus,.field select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.form-note{font-size:14.5px;padding:12px 14px;border-radius:6px}
+.form-note.ok{background:var(--accent-soft);color:var(--ink)}
+.form-note.warn{background:var(--warn-soft);color:var(--warn)}
+.fine{font-size:13.5px;color:var(--muted)}
+
+.safe{display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr));gap:20px 28px;align-items:start;margin-top:28px;padding-top:24px;border-top:1px solid var(--rule)}
+.safe > *{min-width:0}
+.safe-item{display:grid;gap:4px}
+.safe-item code{font:500 11.5px/1.3 var(--f-mono);color:var(--accent);letter-spacing:.03em}
+.safe-item p{font-size:15px;line-height:1.45}
+@media (max-width:980px){.safe{grid-template-columns:repeat(2,minmax(0,1fr))}.safe .label{grid-column:1 / -1}}
+@media (max-width:520px){.safe{grid-template-columns:1fr}}
+
+/* 5. FAQ */
+.split{display:grid;grid-template-columns:1fr 1.6fr;gap:clamp(32px,6vw,96px);align-items:start}
+.split > *{min-width:0}
+.split-head{display:grid;gap:16px}
+@media (max-width:860px){.split{grid-template-columns:1fr}}
+.faq{border-top:1px solid var(--ink)}
+.faq details{border-bottom:1px solid var(--rule)}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:20px;align-items:baseline;padding:18px 0;font:600 18px/1.35 var(--f-body)}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font:400 22px/1 var(--f-mono);color:var(--accent);flex:none}
+.faq details[open] summary::after{content:"\2212"}
+.faq details p{color:var(--muted);padding:0 0 20px;max-width:62ch}
+
+.foot{border-top:1px solid var(--rule)}
+.foot .wrap{padding-block:36px;display:flex;flex-wrap:wrap;gap:14px 32px;align-items:center;justify-content:space-between;font-size:14px;color:var(--muted)}
+.foot nav{display:flex;gap:20px}
+.foot nav a{text-decoration:none}
+.foot nav a:hover{color:var(--ink)}
+</style>
+
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-row">
+    <a class="logo" href="#top" aria-label="Kempt, back to top">
+      <svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true"><rect x="0" y="1" width="22" height="3.4" rx="1.2" fill="currentColor"/><rect x="0" y="7.3" width="22" height="3.4" rx="1.2" fill="currentColor"/><rect x="0" y="13.6" width="22" height="3.4" rx="1.2" fill="currentColor"/></svg>
+      <span>kempt</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#fix">What we fix</a>
+      <a href="#how">How it works</a>
+      <a href="#demo">Free demo</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="#demo">Get a free demo</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- 1. What this is: the problem and the promise -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div class="hero-text">
+          <p class="eyebrow">CRM data cleanup for HubSpot and Microsoft Dynamics</p>
+          <h1 id="hero-title">Your CRM is full of outdated data. <span class="ok">We make it usable again.</span></h1>
+          <p class="lead">Large CRMs grow for years without anyone keeping them current. We remove duplicates, verify and enrich every record, and set up rules that keep the data clean, so your team can segment, re-engage and trust the reports again.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#demo">Get a free demo cleanup</a>
+            <button type="button" class="btn btn-ghost" id="open-demo" aria-haspopup="dialog"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 2.5v11a.6.6 0 0 0 .9.5l9-5.5a.6.6 0 0 0 0-1l-9-5.5a.6.6 0 0 0-.9.5z"/></svg>Watch the demo · 1 min</button>
+          </div>
+          <p class="cta-note">See it work on a sample of your own data before you connect your CRM.</p>
+        </div>
+        <aside class="symptoms" aria-label="Typical CRM problems">
+          <p class="label">Sounds like your CRM?</p>
+          <ul>
+            <li>“We have the same company in there three times.”</li>
+            <li>“Our campaigns bounce more every year.”</li>
+            <li>“Half the records have no industry or country.”</li>
+            <li>“Nobody trusts the CRM reports anymore.”</li>
+          </ul>
+          <p class="after">Each of these can be fixed, at any CRM size.</p>
+        </aside>
+      </div>    </div>
+  </section>
+
+  <!-- 2. What we fix and what you get -->
+  <section class="sec sec-alt" id="fix" aria-labelledby="fix-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">What we fix</p>
+        <h2 id="fix-title">The problems we solve, and what you get</h2>
+        <p>For HubSpot and Microsoft Dynamics. Other CRMs on request.</p>
+      </div>
+      <div class="fixes" role="table" aria-label="Problems, what we do, and the result">
+        <div class="fix-row fix-head" role="row"><span class="label" role="columnheader">The problem</span><span class="label" role="columnheader">What we do</span><span class="label" role="columnheader">What you get</span></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Duplicate contacts and companies</p><p class="d" role="cell">Merge them field by field, so the best value wins and the full activity history stays</p><p class="r" role="cell">One clear record for every customer</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Outdated emails and people who changed jobs</p><p class="d" role="cell">Find each person's current role, source a fresh work email and verify it</p><p class="r" role="cell">Campaigns that reach real people</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Contacts without a LinkedIn profile</p><p class="d" role="cell">Match every contact and company to LinkedIn and pull role, seniority, location and company details from it</p><p class="r" role="cell">Complete profiles, ready for outreach</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Empty industry, size, country and website</p><p class="d" role="cell">Fill them from live data sources</p><p class="r" role="cell">Segments you can trust</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Messy job titles, company names and phone numbers</p><p class="d" role="cell">Standardize them into clear roles, seniority levels and one international format</p><p class="r" role="cell">Filters and reports that work</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Contacts not linked to the right company</p><p class="d" role="cell">Link people to their companies, and companies to their parent groups</p><p class="r" role="cell">A full view of every account</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">Unused fields, junk and test records</p><p class="d" role="cell">Consolidate the fields and archive the junk</p><p class="r" role="cell">A CRM your team uses, and a lower bill</p></div>
+        <div class="fix-row" role="row"><p class="p" role="cell">No clear view of where revenue comes from</p><p class="d" role="cell">Analyze the clean data: which segments, industries and roles buy, what works and what does not</p><p class="r" role="cell">Insights on where your revenue potential is</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. How it works and the technology behind it -->
+  <section class="sec" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title">Three steps, one system behind them</h2>
+      </div>
+      <ol class="steps">
+        <li class="step"><div class="track"><span style="--w:15%"></span></div><p class="when">A few days</p><h3><span class="num">01</span>Free demo</h3><p>Send a sample of your contacts and accounts. You get it back clean, with every change marked, and see the method work on your own data.</p></li>
+        <li class="step"><div class="track"><span style="--w:70%"></span></div><p class="when">Plan set after the audit</p><h3><span class="num">02</span>Cleanup</h3><p>We audit your CRM, agree the rules and the timeline with you, and clean it in batches. Nothing goes back into the CRM before you approve it.</p></li>
+        <li class="step"><div class="track"><span style="--w:100%"></span></div><p class="when">After the project</p><h3><span class="num">03</span>Stays clean</h3><p>The same rules keep running on new records from forms, imports and integrations.</p></li>
+      </ol>
+
+      <div class="tech-block">
+        <div class="tech-intro">
+          <h3>The technology behind it</h3>
+          <p>Every project runs on the same automated data pipeline. It takes your records, applies tested cleaning rules and checks them against live sources. That is why it moves much faster than manual cleanup, at any CRM size.</p>
+        </div>
+        <div class="tech">
+          <div class="tech-item"><code>templates</code><h4>Tested and custom rules</h4><p>Ready rules for the most common CRM problems, refined on earlier projects. For your custom fields and data we write custom rules, so we are never limited to standard CRM properties.</p></div>
+          <div class="tech-item"><code>matching</code><h4>Duplicate matching</h4><p>Finds the same person or company even when names, domains and spellings differ.</p></div>
+          <div class="tech-item"><code>100+ sources</code><h4>Live data sources</h4><p>Verifies emails and fills missing data, checking several providers in turn until one has the answer.</p></div>
+          <div class="tech-item"><code>ai agents</code><h4>AI for messy text</h4><p>Reads job titles, company names and websites and turns them into clean, standard values.</p></div>
+        </div>
+
+        <figure class="ledger" aria-label="Example of five CRM records before and after cleanup">
+          <div class="ledger-bar">
+            <span class="file">Example · 5 records <span class="dim">· made-up data</span></span>
+            <div class="toggle" role="group" aria-label="Show records">
+              <button type="button" id="btn-before" aria-pressed="true">Before</button>
+              <button type="button" id="btn-after" aria-pressed="false">After</button>
+            </div>
+          </div>
+          <div class="ledger-scroll">
+            <table class="records" id="records" data-state="before">
+              <thead>
+                <tr><th scope="col">Status</th><th scope="col">Company</th><th scope="col">Name</th><th scope="col">Title</th><th scope="col">Email</th></tr>
+              </thead>
+              <tbody>
+                <tr style="--i:0">
+                  <td><span class="b tag tag-warn">4 issues</span><span class="a tag tag-ok">2 merged into 1</span></td>
+                  <td><span class="b flag">BRENNAN LOGISTICS GMBH</span><span class="a fixed">Brennan Logistics</span></td>
+                  <td><span class="b flag">J. Miller</span><span class="a fixed">Jana Miller</span></td>
+                  <td><span class="b flag">VP sales</span><span class="a fixed">VP of Sales</span></td>
+                  <td><span class="b flag">j.miller@brennan-log.de</span><span class="a fixed">jana.miller@brennan.com</span></td>
+                </tr>
+                <tr class="drop" style="--i:1">
+                  <td><span class="b tag tag-warn">Duplicate</span><span class="a tag">Merged</span></td>
+                  <td><span>Brennan Logistics</span></td>
+                  <td><span>Jana Miller</span></td>
+                  <td><span class="flag">v.p. of Sales</span></td>
+                  <td><span>jana.miller@brennan.com</span></td>
+                </tr>
+                <tr class="drop" style="--i:2">
+                  <td><span class="b tag tag-warn">3 issues</span><span class="a tag">Archived</span></td>
+                  <td><span class="flag">brennan</span></td>
+                  <td><span class="flag empty">(empty)</span></td>
+                  <td><span class="empty">(empty)</span></td>
+                  <td><span class="flag">info@brennan.com</span></td>
+                </tr>
+                <tr style="--i:3">
+                  <td><span class="b tag">Looks fine</span><span class="a tag tag-ok">Job change</span></td>
+                  <td><span class="b">Quayside Insurance</span><span class="a fixed">Halvorsen Medical</span></td>
+                  <td><span>Tom Hale</span></td>
+                  <td><span class="b">Head of Operations</span><span class="a fixed">Chief Operating Officer</span></td>
+                  <td><span class="b">t.hale@quayside.co.uk</span><span class="a fixed">tom.hale@halvorsen.co.uk</span></td>
+                </tr>
+                <tr style="--i:4">
+                  <td><span class="b tag tag-warn">2 issues</span><span class="a tag tag-ok">Enriched</span></td>
+                  <td><span class="b flag">Corvel Systems Inc.</span><span class="a fixed">Corvel Systems</span></td>
+                  <td><span>Sara Kim</span></td>
+                  <td><span class="b flag empty">(empty)</span><span class="a fixed">Director of Marketing</span></td>
+                  <td><span>sara.kim@corvel.io</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <figcaption class="ledger-foot">
+            <span class="legend"><span><i class="sw" aria-hidden="true"></i>Issue found</span><span><i class="sw ok" aria-hidden="true"></i>Fixed</span></span>
+            <span id="ledger-summary" aria-live="polite">10 issues in 5 records</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Free demo, with security in short -->
+  <section class="sec sec-alt" id="demo" aria-labelledby="demo-title">
+    <div class="wrap">
+      <div class="panel">
+        <div class="intro">
+          <p class="eyebrow">Free demo</p>
+          <h2 id="demo-title">See how it works on your own data. Free.</h2>
+          <p>The easiest way to judge the method is to watch it work on your own records. Send a sample of up to 500 contacts and accounts, gaps and duplicates included. You get the same records back cleaned, with every change marked, so you can compare before and after yourself. No cost, no commitment.</p>
+          <div class="person">
+            <a class="avatar" href="https://www.linkedin.com/in/lora-turundzieva/" target="_blank" rel="noopener noreferrer" aria-label="Lora Turundzieva on LinkedIn"><img src="lora-circle.jpg" alt="" width="108" height="108"></a>
+            <div>
+              <p class="person-name"><a href="https://www.linkedin.com/in/lora-turundzieva/" target="_blank" rel="noopener noreferrer">Lora Turundzieva</a></p>
+              <p class="person-role">Head of Sales</p>
+              <p class="person-text">Your contact for the demo, pricing and any question about a project.</p>
+              <div class="person-links">
+                <a class="btn-li" href="https://www.linkedin.com/in/lora-turundzieva/" target="_blank" rel="noopener noreferrer"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>View profile on LinkedIn</a>
+                <span class="mail"><span id="mail">lora@kemptcrm.com</span><button type="button" class="copy" id="copy-mail">Copy</button></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <form class="form" id="demo-form" novalidate>
+          <div class="field"><label for="f-email">Work email</label><input id="f-email" name="email" type="email" autocomplete="email" placeholder="name@company.com" required></div>
+          <div class="field"><label for="f-company">Company</label><input id="f-company" name="company" type="text" autocomplete="organization" required></div>
+          <div class="field-row">
+            <div class="field"><label for="f-crm">CRM</label>
+              <select id="f-crm" name="crm"><option>HubSpot</option><option>Microsoft Dynamics</option><option>Other</option></select></div>
+            <div class="field"><label for="f-size">Records in your CRM</label>
+              <select id="f-size" name="size"><option>Under 50,000</option><option selected>50,000 to 250,000</option><option>250,000 to 1 million</option><option>Over 1 million</option></select></div>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Request free demo</button>
+          <p class="form-note" id="form-note" role="status" hidden></p>
+          <p class="fine">Lora replies within one working day. Your details are only used to answer your request.</p>
+        </form>
+      </div>
+
+      <div class="safe" id="security" aria-label="Security">
+        <p class="label">Your data is safe</p>
+        <div class="safe-item"><code>NDA + DPA</code><p>Signed before you share anything, the demo included.</p></div>
+        <div class="safe-item"><code>SOC 2 Type II · ISO 27001</code><p>Processed on certified infrastructure, GDPR and CCPA compliant, encrypted.</p></div>
+        <div class="safe-item"><code>backup + sign-off</code><p>Full backup first. Nothing changes without your approval.</p></div>
+        <div class="safe-item"><code>delete on exit</code><p>No copies kept after the project, deletion confirmed in writing.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. FAQ -->
+  <section class="sec" id="faq" aria-labelledby="faq-title">
+    <div class="wrap split">
+      <div class="split-head">
+        <p class="eyebrow">FAQ</p>
+        <h2 id="faq-title">Short answers</h2>
+      </div>
+      <div class="faq">
+        <details open><summary>How is a project priced?</summary><p>We quote per project after the free demo, based on the number of records and the scope. You get a fixed quote before work starts.</p></details>
+        <details><summary>What do you need from us?</summary><p>For the demo, a simple CSV or Excel export. For the project, we work with whatever way of sharing data suits you and your IT team, from regular exports to an API connection.</p></details>
+        <details><summary>How long does a project take?</summary><p>It depends on the size of your CRM and the scope. After the audit you get a plan with a timeline for each phase, and you see the first cleaned records early on.</p></details>
+        <details><summary>Who does the work?</summary><p>Specialized GTM engineers who work with CRM data every day. We have cleaned and rebuilt large HubSpot and Microsoft Dynamics databases for research institutions, consultancies and B2B companies. References are shared on a call.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="demo-modal" role="dialog" aria-modal="true" aria-label="Kempt demo video" hidden>
+  <div class="modal-box">
+    <div class="modal-bar"><span>Kempt · how the cleaning line works</span><button type="button" class="modal-close" id="close-demo">Close</button></div>
+    <video id="demo-video" src="kempt-demo.mp4" controls playsinline preload="metadata"></video>
+    <p class="modal-missing" id="demo-missing" hidden>The demo video is being added. In the meantime, Lora can walk you through it on a call.</p>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Kempt, back to top">
+      <svg width="18" height="15" viewBox="0 0 22 18" aria-hidden="true"><rect x="0" y="1" width="22" height="3.4" rx="1.2" fill="currentColor"/><rect x="0" y="7.3" width="22" height="3.4" rx="1.2" fill="currentColor"/><rect x="0" y="13.6" width="22" height="3.4" rx="1.2" fill="currentColor"/></svg>
+      <span style="font-size:20px">kempt</span>
+    </a>
+    <span>CRM data cleanup for large companies. Office in Berlin, Germany. Clients worldwide.</span>
+    <nav aria-label="Legal"><a href="#imprint">Imprint</a><a href="#privacy">Privacy policy</a></nav>
+    <span>© 2026 Kempt</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var modal = document.getElementById('demo-modal');
+  var vid = document.getElementById('demo-video');
+  var openBtn = document.getElementById('open-demo');
+  var closeBtn = document.getElementById('close-demo');
+  var missing = document.getElementById('demo-missing');
+  function openDemo(){
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+    if (!vid.hidden) { try { var p = vid.play(); if (p && p.catch) p.catch(function(){}); } catch (e) {} }
+  }
+  function closeDemo(){
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    try { vid.pause(); } catch (e) {}
+    openBtn.focus();
+  }
+  openBtn.addEventListener('click', openDemo);
+  closeBtn.addEventListener('click', closeDemo);
+  modal.addEventListener('click', function(e){ if (e.target === modal) closeDemo(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !modal.hidden) closeDemo(); });
+  vid.addEventListener('error', function(){ vid.hidden = true; missing.hidden = false; });
+})();
+(function(){
+  var table = document.getElementById('records');
+  var ledger = table.closest('.ledger');
+  var bBtn = document.getElementById('btn-before');
+  var aBtn = document.getElementById('btn-after');
+  var summary = document.getElementById('ledger-summary');
+  var flags = table.querySelectorAll('.flag').length;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var touched = false;
+
+  function setState(s, animate){
+    table.setAttribute('data-state', s);
+    bBtn.setAttribute('aria-pressed', String(s === 'before'));
+    aBtn.setAttribute('aria-pressed', String(s === 'after'));
+    summary.textContent = s === 'before'
+      ? flags + ' issues in 5 records'
+      : '0 open issues · 1 merge · 1 archived · 1 job change · 1 enriched';
+    if (animate && !reduce){
+      table.classList.remove('anim'); void table.offsetWidth; table.classList.add('anim');
+    }
+  }
+  bBtn.addEventListener('click', function(){ touched = true; setState('before', true); });
+  aBtn.addEventListener('click', function(){ touched = true; setState('after', true); });
+  setState('before', false);
+
+  function autoClean(){ setTimeout(function(){ if (!touched) setState('after', true); }, 1600); }
+  if (!reduce){
+    if ('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(entries){
+        if (entries[0].isIntersecting){ io.disconnect(); autoClean(); }
+      }, {threshold: 0.5});
+      io.observe(ledger);
+    } else { autoClean(); }
+  }
+
+  var copyBtn = document.getElementById('copy-mail');
+  var mail = document.getElementById('mail');
+  copyBtn.addEventListener('click', function(){
+    function reset(){ setTimeout(function(){ copyBtn.textContent = 'Copy'; }, 1600); }
+    function fallback(){
+      var r = document.createRange(); r.selectNodeContents(mail);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      copyBtn.textContent = 'Selected'; reset();
+    }
+    try { navigator.clipboard.writeText(mail.textContent).then(function(){ copyBtn.textContent = 'Copied'; reset(); }, fallback); }
+    catch (e) { fallback(); }
+  });
+
+  var form = document.getElementById('demo-form');
+  var note = document.getElementById('form-note');
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var email = form.elements.email.value.trim();
+    var company = form.elements.company.value.trim();
+    note.hidden = false;
+    if (!/^\S+@\S+\.\S+$/.test(email) || !company){
+      note.className = 'form-note warn';
+      note.textContent = 'Add your work email and company name so Lora can reply.';
+      return;
+    }
+    note.className = 'form-note ok';
+    note.textContent = 'Preview only: this form is not connected yet. On the live site your request goes straight to Lora.';
+  });
+})();
+</script>
+</body>
+</html>
